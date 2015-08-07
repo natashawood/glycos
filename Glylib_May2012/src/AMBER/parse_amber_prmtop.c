@@ -6,6 +6,7 @@
 #include "AMBER/amber_prmtop.h"
 #include "gly_codeutils.h"
 
+// FUTURE NATASHA LOOK HERE!  I changed this to have the two functions compare_array_ws and count_array_nws outside the main fuction since Xcode or gcc for OS X did not want to compile this as it was. Thanks. 
 assembly A;
 int *ICO,nICO;
 int pa=0,pb=0,pc=0,pd=0,pA1=0,pA2=0,pA3,pA4,pI1=0;
