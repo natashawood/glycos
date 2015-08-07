@@ -1,4 +1,4 @@
-GLYHOME = /Users/user/Documents/GlycoScience/SHAW/Glylib_May2012
+GLYHOME = /Users/natasha/Documents/bin/glycos/Glylib_May2012
 CC = gcc
 FLAGS = -I$(GLYHOME)/inc -L$(GLYHOME)/lib -lglylib -Wall -lm
 SOURCE = LINK2bond.c
