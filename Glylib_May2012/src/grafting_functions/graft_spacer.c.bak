@@ -1,0 +1,181 @@
+// Function written by Oliver Grant August 2012
+#include <mylib.h>
+#include <molecules.h>
+int graft_spacer(assembly *A, char *fileprefix){ // A is carb. B is linker
+
+assembly Sp;
+int is_below=0; // Number of residues below the plane.
+int ai=0,ri=0,mi=0;
+int bi=0,bri=0,bai=0,bmi=0;
+vectormag_3D nv, v02, v12, v03; //v02 means vector from pt0 to pt2 
+double angle;
+int sl=4; //times 1.43 = spacer length in angstrom
+coord_3D pt0,*pt1,*pt2,*pt3;
+pt1=(coord_3D*)calloc(1, sizeof(coord_3D));
+pt2=(coord_3D*)calloc(1, sizeof(coord_3D));
+pt3=(coord_3D*)calloc(1, sizeof(coord_3D));
+
+// Get ID number from fileprefix
+char id[20];
+int i=0;
+while( (fileprefix[i] != '-') && (i < 20) ){
+    id[i]=fileprefix[i];
+    i++;
+}
+id[i]='\0';
+printf("Id=%s\n",id);
+
+//Read through spacer_id.txt intil we find the spacer used by the ID.
+FILE *file;
+char spacer[20], buffer[20], line[80];
+int stop=0;
+file = fopen("spacer_id.txt", "rt");
+while( (fgets(line, 80, file) !=NULL) && (stop!=1) ){
+    sscanf(line,"%s",buffer);
+    if(strcmp(id,buffer)==0){
+        stop=1;
+        fgets(spacer, 80, file);
+        printf("Success %s=%s\n",id,spacer);
+    }
+    //printf("%s\n",buffer);
+}
+fclose(file);
+
+// Go into Spacers folder. Find current spacer and create a list of all structural files associated with it.
+char dir[40];
+strcpy (dir,"Spacers/");
+strcat (dir,spacer);
+int len=strlen(dir);
+dir[len-1]= '/';
+//strcat (dir,"/");
+printf("dir=%s\n",dir);
+DIR *mydir = opendir(dir);
+struct dirent *entry = NULL;
+int numfiles=0;
+i=0;
+char (*d_list)[200];
+d_list = malloc(1000 * sizeof *d_list);
+while((entry = readdir(mydir))){ /* If we get EOF, the expression is 0 and the loop stops. */
+    if ( (strcmp(entry->d_name,".")!=0) && (strcmp(entry->d_name,"..")!=0) ){ // skip . and ..
+        printf("%s\n", entry->d_name);
+        strcpy(d_list[i], dir);
+        strcat(d_list[i], entry->d_name);
+        i++;
+    }
+}
+closedir(mydir);
+numfiles=i;
+
+//for (i=0;i<(numfiles);i++){
+//        printf("d_list[%d]=%s\n",i,d_list[i]);
+//}
+
+//printf("numfiles=%d\n",numfiles);
+
+//load spacers 3d structures and rename atoms so they can be superimposed.
+for(mi=0;mi<(*A).nm;mi++){ // for each molecule
+    for(ri=0;ri<(*A).m[mi][0].nr;ri++){ // for each residue in molecule
+        if( (strcmp((*A).m[mi][0].r[ri].N,"ROH")==0) || (strcmp((*A).m[mi][0].r[ri].N,"OME")==0) ){ // if ROH or OME
+	    for(ai=0;ai<(*A).m[mi][0].r[ri].na;ai++){ // for each atom
+ 	        if( (strcmp((*A).m[mi][0].r[ri].a[ai].N,"O1")==0) || (strcmp((*A).m[mi][0].r[ri].a[ai].N,"O")==0) ){ // If O1 or O
+		    strcpy(ROHatom,(*A).m[mi][0].r[ri].a[ai].N);
+                    A_a2=&(*A).m[mi][0].r[ri].a[ai]; // pointer to a2 atom
+                    // find atom (C1) in other residue that this one is connected to and the connect two atoms (O5,C2) 
+                    for(i=0;i<(*A).m[mi][0].r[ri].a[ai].nmb;i++){
+		        c_ai=(*A).m[mi][0].r[ri].a[ai].mb[i].t.a;
+		        c_ri=(*A).m[mi][0].r[ri].a[ai].mb[i].t.r;
+                        c_mi=(*A).m[mi][0].r[ri].a[ai].mb[i].t.m;
+                        strcpy(cplx_a1,(*A).m[c_mi][0].r[c_ri].a[c_ai].N);
+                        strcpy(cplx_a2,(*A).m[mi][0].r[ri].a[ai].N);
+                        strcpy((*A).m[c_mi][0].r[c_ri].a[c_ai].N,"a1");
+                        strcpy((*A).m[mi][0].r[ri].a[ai].N,"a2");
+                        for (i=0;i<(*A).m[c_mi][0].r[c_ri].a[c_ai].nb;i++){ // for each atom bonded to c_ai
+                            tmpi[i]=(*A).m[c_mi][0].r[c_ri].a[c_ai].b[i].t.a; // readability: save ai of bonded atom
+                            if ((*A).m[c_mi][0].r[c_ri].a[tmpi[i]].N[1]>a4){ // if the atom number is > number in a4
+                                a3=a4; // push what was a4 down to a3. These are just for atom number comparison.
+                		a3_ai=prev;
+                		a4=(*A).m[c_mi][0].r[c_ri].a[tmpi[i]].N[1]; // make a4 = the current atom number
+                		a4_ai=tmpi[i];
+                		prev=tmpi[i];
+                	    }
+                	    else if ((*A).m[c_mi][0].r[c_ri].a[tmpi[i]].N[1]>a3){ // if !> a4 check if > a3
+                	        a3=(*A).m[c_mi][0].r[c_ri].a[tmpi[i]].N[1]; // make a3 equal the atom number
+              		        a3_ai=tmpi[i];
+                	    }
+        		}
+        		strcpy(cplx_a3, (*A).m[c_mi][0].r[c_ri].a[a3_ai].N); // SAVE ATOM NAME FOR RENAMING COMPLEX
+        		strcpy((*A).m[c_mi][0].r[c_ri].a[a3_ai].N,"a3"); // rename that atom a3
+        		strcpy(cplx_a4, (*A).m[c_mi][0].r[c_ri].a[a4_ai].N); // SAVE ATOM NAME FOR RENAMING COMPLEX
+        		strcpy((*A).m[c_mi][0].r[c_ri].a[a4_ai].N,"a4"); // rename that atom a4
+		    }	
+                }
+            }
+        }
+    }
+}
+
+
+// For each file in list
+//load into B
+for(i=0;i<(numfiles);i++){
+    load_pdb(d_list[i],&Sp);
+    set_nbonds_for_atoms_in_assembly(&Sp);
+// superimpose 4 atoms
+    for(mi=0;mi<(*Sp).nm;mi++){ 
+        for(ri=0;ri<(*Sp).m[mi][0].nr;ri++){ 
+            if(strcmp((*Sp).m[mi][0].r[ri].N,spacer)==0){
+                for(ai=0;ai<(*Sp).m[mi][0].r[ri].na;ai++){ // for each atom in spacer
+                    for(bi=0;bi<(*Sp).m[mi][0].r[ri].a[ai].nmb;bi++){
+                        bai=(*Sp).m[mi][0].r[ri].a[ai].mb[bi].t.a;
+                        bri=(*Sp).m[mi][0].r[ri].a[ai].mb[bi].t.r;
+                        bmi=(*Sp).m[mi][0].r[ri].a[ai].mb[bi].t.m;
+                        if(strcmp((*Sp).m[bmi][0].r[bri].N,"LNK")!=0){ // If it isn't LNK residue it must be sugar :(
+                            strcpy((*Sp).m[bmi][0].r[bri].a[bai].N,"a1");
+                            strcpy((*Sp).m[mi][0].r[ri].a[ai].N,"a2");
+                            for(j=0;j<(*Sp).m[bmi][0].r[bri].a[bai].nb;j++){
+                                
+                                if( // wtf is a4 set to intially?    
+
+
+ //Find 4 atoms in linker that will be superimposed. 
+
+ //O or O1 in OME or ROH. Look for atoms bonded to that then. Rename. 
+ //Find same atoms in Sp and rename those. If sialic acid in linker then convert atoms names.
+ //Linkers will already have sugars attached.
+
+//Check clash with protein and write out.
+
+//Check residues below plane if no clash with protein.
+
+
+// Old code but possibly usable:
+// Find pt0
+v12=get_vector_from_coords(*pt1,*pt2);
+nv=normalize_vec(v12);
+pt0.i=(*pt1).i-(nv.i*sl);
+pt0.j=(*pt1).j-(nv.j*sl);
+pt0.k=(*pt1).k-(nv.k*sl);
+v02=get_vector_from_coords(pt0,*pt2);
+
+// To visualize pt0:
+//printf("ATOM      1  H   XXX     0    %8.3f%8.3f%8.3f  1.00  0.00\n",pt0.i,pt0.j,pt0.k);
+
+// Check angle of v02 against pt0 to each CA atom in receptor
+for(mi=0;mi<(*B).nm;mi++){ // for each molecule
+	for(ri=0;ri<(*B).m[mi][0].nr;ri++){ // for each residue in molecule
+        	for(ai=0;ai<(*B).m[mi][0].r[ri].na;ai++){
+			if (strcmp((*B).m[mi][0].r[ri].a[ai].N,"CA")==0){
+				pt3=&(*B).m[mi][0].r[ri].a[ai].x;
+				v03=get_vector_from_coords(pt0,*pt3);
+				angle=get_angle_between_vectors(v02,v03);
+				if (angle>1.57){ // 90/57.2957795=1.57 90 degrees in radians...
+				//	printf("Residue %d, atom %s, angle is %.2f\n",(*B).m[mi][0].r[ri].n,(*B).m[mi][0].r[ri].a[ai].N,(angle*57.2957795));
+					is_below++;
+				}
+			}
+		}
+	}		
+}
+return is_below;
+}
+

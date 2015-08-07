@@ -1,0 +1,131 @@
+#include <glylib.h>
+#include <mylib.h>
+#include <molecules.h>
+
+/* Based on linkage residue this function will find which linkage leads to the core.*/
+// function declarations:
+//void follow_branch_from_residue(int core_dir, int c_ri, int c_mi, int crn, assembly *A, coord_3D **brnch, int *nab);
+void follow_atom_tree(residue *r, int ai, coord_3D **brnch, int *nab);
+
+// START HERE:
+void find_branch_to_rotate(assembly *A, atom *bat, atom *cat, coord_3D **brnch, int *nab){
+
+/* get atom (Aa) in linked_resid that is connected to atom (Ab) in core_dir */
+/* Go to atom connected to ring atom in core_dir. From here travel to all it's neighbours bar where we came from saving co_cord. Move to next atom. Repeat.ti*/
+
+int ai=0; // index
+int c_mi=0,c_ri=0,c_ai=0; // Connected residue index, connected atom index
+int i=0;
+//int crn; //current residue name
+
+/*
+// first find the mb which leads to the core
+for(mi=0;mi<(*A).nm;mi++){
+        for(ri=0;ri<(*A).m[mi][0].nr;ri++){
+		if(linkage_resid==(*A).m[mi][0].r[ri].n){
+//DEBUG			printf("Found linkage residue %d\n",linkage_resid); 
+			if((*A).m[mi][0].r[ri].nrb>0){ // if it has residues connected (It will)
+//DEBUG				printf("It has %d connected residues\n",(*A).m[mi][0].r[ri].nrb);
+				for(i=0;i<(*A).m[mi][0].r[ri].nrb;i++){ //for each residue connected
+					c_mi=(*A).m[mi][0].r[ri].rb[i].t.m;
+					c_ri=(*A).m[mi][0].r[ri].rb[i].t.r;
+					cri=(*A).m[mi][0].r[ri].n;
+//DEBUG					printf("BACK OUT TO FIRST CALL\n\nResid connected to linkage=%d\n",(*A).m[c_mi][0].r[c_ri].n);
+					explore_branch_for_core(core_ri, c_ri, c_mi, cri, A, &found_core); // self calling function
+					if(found_core==1){ 
+			//			printf("Resid %d leads to the core\n",(*A).m[c_mi][0].r[c_ri].n);
+						core_dir=(*A).m[c_mi][0].r[c_ri].n;
+						found_core=0; //reset
+					}
+				}
+			}
+		}
+	}
+}
+*/
+// find 
+// add in atoms from core glycan if nesscessary for rotation
+
+// call this function for each torsion. Give in two atoms.
+// given branch atom (bat) connected to atom (cat) that is the direction towards core that won't move.
+// Save everything back from bat including bat.
+	
+
+printf("nmb for atom=%d\n",(*bat).nmb);
+/********find all atoms in residue we need to move******************/
+for (i=0;i<bat[0].nmb;i++){
+	c_mi=bat[0].b[i].t.m;
+	c_ri=bat[0].b[i].t.r;
+	c_ai=bat[0].b[i].t.a;
+	printf("c_ai=%d\n",c_ai);
+	if ((*A).m[c_mi][0].r[c_ri].a[c_ai].n!=cat[0].n){
+		printf("%d is not equal to %d\n",(*A).m[c_mi][0].r[c_ri].a[c_ai].n,cat[0].n);
+		follow_atom_tree(&(*A).m[c_mi][0].r[c_ri], ai, brnch, nab);
+	}
+}
+return;
+}
+
+void follow_atom_tree(residue *r, int ai, coord_3D **brnch, int *nab){
+int i=0,c_ai=0;
+
+for (i=0;i<r[0].a[ai].nmb;i++){ // for each atom connected to this
+	brnch[*nab]=&r[0].a[ai].x; // save coord
+	*nab=(*nab+1);
+        c_ai=r[0].a[ai].b[i].t.a;
+	printf("%d is bonded to %d\n",ai,c_ai);
+	follow_atom_tree(r, c_ai, brnch, nab);
+}
+
+return;
+}
+
+/*******Now find all atoms in other residues we need to move********/
+/*
+for(i=0;i<lr[0].nrb;i++){ // for each residue connected to it
+	c_mi=lr[0].rb[i].t.m;
+        c_ri=lr[0].rb[i].t.r;
+        crn=lr[0].n;
+	if(crn!=core_dir){
+		follow_branch_from_residue(core_dir, c_ri, c_mi, crn, A, brnch, nab);
+	}
+}
+*/
+
+
+/***FUNCTION. RECURSIVE SELF CALLER FOR EXPLORING BRANCHES. GETS COORD OF ALL ATOMS IN OTHER DIRECTIONS FROM CORE FOR ROTATION *********/////
+
+/* Finds co_ord of all atoms in branch from linkage. These atoms will be rotated when setting the new torsion */
+/*
+void follow_branch_from_residue(int core_dir, int c_ri, int c_mi, int crn, assembly *A, coord_3D **brnch, int *nab){
+int i=0;
+int cc_ri=0, cc_mi=0; // connected connected indexes
+int nrb; //readability. Number of residue bonds to other residues
+int prn; // previous residue id
+int ai;
+
+prn=crn;
+crn=(*A).m[c_mi][0].r[c_ri].n;
+nrb=(*A).m[c_mi][0].r[c_ri].nrb;
+
+for (ai=0;ai<(*A).m[c_mi][0].r[c_ri].na;ai++){
+	brnch[*nab]=&(*A).m[c_mi][0].r[c_ri].a[ai].x; // save address of coord
+//DBG/ printf("brnch[%d]=%p\n",*nab,brnch[*nab]);
+//DEBUG	printf("brnch[0].nc=%d\n",brnch[0].nc);
+        *nab=(*nab+1);	
+}
+//DBG/ printf("Nab=%d\n",*nab);
+
+if ((nrb>1) && (crn!=core_dir)) {
+        for (i=0;i<nrb;i++){ // for each neighbour that isn't in the direction towards the core.
+                cc_ri=(*A).m[c_mi][0].r[c_ri].rb[i].t.r;
+                cc_mi=(*A).m[c_mi][0].r[c_ri].rb[i].t.m;
+                if (prn!=(*A).m[cc_mi][0].r[cc_ri].n){ // if not going back on ourselves
+                        follow_branch_from_residue(core_dir, cc_ri, cc_mi, crn, A, brnch, nab);
+                }
+        }
+}
+
+return;
+}
+*/

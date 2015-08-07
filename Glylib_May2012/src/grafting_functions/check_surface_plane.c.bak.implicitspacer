@@ -1,0 +1,77 @@
+// Function written by Oliver Grant August 2012
+/* Function checks whether a receptor (assembly B) is below the plane defined by O1-C1 vector. 
+ * Requires OME or ROH as the aglycon.  
+ * Currently estimates the spacer length(sl) at 8 angstrom. Defines pt0 as a pt 8 angstrom below O1-C1 vector
+ * pt1 is O1, pt2 is C1 and pt3 becomes every CA atom in receptor in turn
+ * checks angle between pt0-->pt1 and pt0-->pt3. If above 90 degrees then pt3 is below the plane.
+ * A faster way could be to align the O1-C1 bond to the Z axis and check the Z component.
+ */
+#include <mylib.h>
+#include <molecules.h>
+int check_surface_plane(assembly *A, assembly *B){ // A is carb. B is receptor
+int is_below=0; // Number of residues below the plane.
+int ai=0,ri=0,mi=0;
+int bi=0,bri=0,bai=0,bmi=0;
+vectormag_3D nv, v02, v12, v03; //v02 means vector from pt0 to pt2 
+double angle;
+
+int sl=4; //times 1.43 = spacer length in angstrom
+
+coord_3D pt0,*pt1,*pt2,*pt3;
+
+pt1=(coord_3D*)calloc(1, sizeof(coord_3D));
+pt2=(coord_3D*)calloc(1, sizeof(coord_3D));
+pt3=(coord_3D*)calloc(1, sizeof(coord_3D));
+
+// Find pt1 and pt2
+for(mi=0;mi<(*A).nm;mi++){ // for each molecule
+        for(ri=0;ri<(*A).m[mi][0].nr;ri++){ // for each residue in molecule
+                if( (strcmp((*A).m[mi][0].r[ri].N,"ROH")==0) || (strcmp((*A).m[mi][0].r[ri].N,"OME")==0) ){ // if ROH or OME
+                        for(ai=0;ai<(*A).m[mi][0].r[ri].na;ai++){ // for each atom
+				if( (strcmp((*A).m[mi][0].r[ri].a[ai].N,"O1")==0) || (strcmp((*A).m[mi][0].r[ri].a[ai].N,"O")==0) ){ // If O1 or O
+					pt1=&(*A).m[mi][0].r[ri].a[ai].x; // save coord
+					//printf("Found pt1 with x=%.2f\n",(*pt1).i);
+					for (bi=0;bi<(*A).m[mi][0].r[ri].a[ai].nmb;bi++){ // for each atom bonded to pt1
+						if ((*A).m[mi][0].r[ri].a[ai].mb[bi].t.r!=ri){ // if in another residue save coord in pt2
+							bai=(*A).m[mi][0].r[ri].a[ai].mb[bi].t.a;
+							bri=(*A).m[mi][0].r[ri].a[ai].mb[bi].t.r;
+							bmi=(*A).m[mi][0].r[ri].a[ai].mb[bi].t.m;
+							pt2=&(*A).m[bmi][0].r[bri].a[bai].x;
+					//		printf("Found pt2 %s in resid %s\n",(*A).m[bmi][0].r[bri].a[bai].N,(*A).m[bmi][0].r[bri].N);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+// Find pt0
+v12=get_vector_from_coords(*pt1,*pt2);
+nv=normalize_vec(v12);
+pt0.i=(*pt1).i-(nv.i*sl);
+pt0.j=(*pt1).j-(nv.j*sl);
+pt0.k=(*pt1).k-(nv.k*sl);
+v02=get_vector_from_coords(pt0,*pt2);
+
+// To visualize pt0:
+//printf("ATOM      1  H   XXX     0    %8.3f%8.3f%8.3f  1.00  0.00\n",pt0.i,pt0.j,pt0.k);
+
+// Check angle of v02 against pt0 to each CA atom in receptor
+for(mi=0;mi<(*B).nm;mi++){ // for each molecule
+	for(ri=0;ri<(*B).m[mi][0].nr;ri++){ // for each residue in molecule
+        	for(ai=0;ai<(*B).m[mi][0].r[ri].na;ai++){
+			if (strcmp((*B).m[mi][0].r[ri].a[ai].N,"CA")==0){
+				pt3=&(*B).m[mi][0].r[ri].a[ai].x;
+				v03=get_vector_from_coords(pt0,*pt3);
+				angle=get_angle_between_vectors(v02,v03);
+				if (angle>1.57){ // 90/57.2957795=1.57 90 degrees in radians...
+				//	printf("Residue %d, atom %s, angle is %.2f\n",(*B).m[mi][0].r[ri].n,(*B).m[mi][0].r[ri].a[ai].N,(angle*57.2957795));
+					is_below++;
+				}
+			}
+		}
+	}		
+}
+return is_below;
+}
+

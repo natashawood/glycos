@@ -1,0 +1,23 @@
+/** \file wiggling.h
+\brief  Header file for wiggling 
+
+	by Oliver Grant. */
+
+#include <geometries.h>
+#include <parameter_sets.h>
+#include <molecules.h>
+#include <mylib.h>
+
+void set_nmb_for_atoms_in_assembly(assembly *A);
+void find_branch_to_rotate(assembly *A, atom *bat, atom *cat, coord_3D **brnch, int *nab);
+void change_torsion_by(double delta_phi, dihedral_coord_set *DCS, int lna, int tors, coord_3D **brnch, int *nab);
+void generate_torsion_window_permutations(int window_size, assembly *A, assembly *B, int tors, int *total_struct, double *lowest_clash, int linkage_resid, int linked2);
+int find_vdw_clashes_return_clashiest_resid(assembly *A, assembly *B, int nbr);
+double find_vdw_clashes_return_total(assembly *A, assembly *B, int nbr);
+double find_vdw_clashes_return_resid_total(assembly *A, assembly *B, int *current_resid, int nbr);
+int find_next_resid(assembly *A, int current_resid, int *core_ri);
+void find_path_to_core(assembly *A, int *core_ri ,int current_resid, int *branch);
+void keep_best_structure(assembly *A, assembly *B, double *total_clash);
+double wiggler(assembly *A, assembly *B, int *core_ri);
+void explore_branch_for_core(int *core_ri, int c_ri, int c_mi, int pri, assembly *A, int *found_core);
+int find_connection_atoms(int linkage, int linked2, atom *cat, atom *bat, dihedral_coord_set *DCS, assembly *A);

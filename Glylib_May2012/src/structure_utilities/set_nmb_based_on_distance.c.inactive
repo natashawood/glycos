@@ -1,0 +1,88 @@
+/*
+Oliver Grant 7Feb11
+This function was written as to fill in number of bonds info when a pdb was read in.
+Finds the number of bonds an atom in a structure has based on distance
+
+*/
+#include <mylib.h>
+#include <molecules.h>
+#define DIST 1.6
+void set_nmb_based_on_distance(assembly *A){ 
+printf("Setting nmb based on distance between atoms\n");
+// revieved a pointer to an assembly need to dereference 
+
+int mi=0,ri=0,ai=0,aii=0,mii=0,rii=0,bi=0;//loop counters
+//int nrbc=0; // number of residue bonds counter
+
+
+double x,y,z,d; // xyz are holders to make code more readable. d is distance between two atoms
+//compare dist between each atom and all other atoms in that residue
+
+// Found a strange instance where nmb wasn't initialized to zero. This fixed it. OG
+for(mi=0;mi<(*A).nm;mi++){
+        for(ri=0;ri<(*A).m[mi][0].nr;ri++){
+		(*A).m[mi][0].r[ri].nrb=0;
+		for(ai=0;ai<(*A).m[mi][0].r[ri].na;ai++){
+			(*A).m[mi][0].r[ri].a[ai].nmb=0;
+		}
+	}
+}
+
+
+for(mi=0;mi<(*A).nm;mi++){
+        for(ri=0;ri<(*A).m[mi][0].nr;ri++){
+                for(ai=0;ai<(*A).m[mi][0].r[ri].na;ai++){// ai is now current atom to check every other atom against
+			for(mii=0;mii<(*A).nm;mii++){ // for every molecule
+				for(rii=0;rii<(*A).m[mii][0].nr;rii++){ // for every residue
+				//if (rii!=ri || mii!=mi){ // don't check within the same residue
+					for(aii=0;aii<(*A).m[mii][0].r[rii].na;aii++){ //for current atom check dist to every other atom
+                                		x=((*A).m[mii][0].r[rii].a[aii].x.i-(*A).m[mi][0].r[ri].a[ai].x.i);
+                                		y=((*A).m[mii][0].r[rii].a[aii].x.j-(*A).m[mi][0].r[ri].a[ai].x.j);
+                                		z=((*A).m[mii][0].r[rii].a[aii].x.k-(*A).m[mi][0].r[ri].a[ai].x.k);
+                                		d=sqrt((x*x)+(y*y)+(z*z)); //pythagorus square on hyp in 3D
+                                		//printf("\ndist is %f\n",d);
+                                		if (d<=DIST && d>0.001){ // If not the same atom but close enough for a bond
+                                       			//increment number of bonds counter if atom within DIST but not itself (d>0.001)
+                                       			(*A).m[mi][0].r[ri].a[ai].nmb++; /* shorten this for readability */
+							bi=(*A).m[mi][0].r[ri].a[ai].nmb;  /* so the next bits don't get really long */
+							//printf("Setting nmb=%d for atom %s in residue %d\n",(*A).m[mi][0].r[ri].a[ai].nmb,(*A).m[mi][0].r[ri].a[ai].N,(*A).m[mi][0].r[ri].n);
+							/* allocate or reallocate space to accommodate the new bond info */
+							if(bi==1){(*A).m[mi][0].r[ri].a[ai].mb=(molbond*)calloc(1, sizeof(molbond));}
+							else{(*A).m[mi][0].r[ri].a[ai].mb=(molbond*)realloc((*A).m[mi][0].r[ri].a[ai].mb,bi*sizeof(molbond));}
+							bi--; // always one less than number of bonds so that index starts at 0
+                                       			//set source atom info, redundant in this case but hey it's there and I can fill it in 
+                                			(*A).m[mi][0].r[ri].a[ai].mb[bi].s.r=ri;
+							(*A).m[mi][0].r[ri].a[ai].mb[bi].s.a=ai;
+							(*A).m[mi][0].r[ri].a[ai].mb[bi].s.m=mi;
+							/* set target atom info, mi=mii and ri=rii */
+							(*A).m[mi][0].r[ri].a[ai].mb[bi].t.a=aii;
+							//printf("mi=%d ri=%d ai=%d bi=%d t.a=%d\n",mi,ri,ai,bi,((*A).m[mi][0].r[ri].a[ai].b[bi].t.a));
+                                       			(*A).m[mi][0].r[ri].a[ai].mb[bi].t.r=rii;
+							(*A).m[mi][0].r[ri].a[ai].mb[bi].t.m=mii; 
+						
+					/*		if (rii!=ri || mii!=mi){ // Set residue bonds	
+								nrbc=(*A).m[mi][0].r[ri].nrb;
+								(*A).m[mi][0].r[ri].nrb++;
+								nrbc=(*A).m[mi][0].r[ri].nrb;
+								//printf("nrbc=%d,mi=%d,ri=%d\n",nrbc,mi,ri);
+								if(nrbc==1){(*A).m[mi][0].r[ri].rb=(molbond*)calloc(1, sizeof(molbond));}
+                                                        	else{(*A).m[mi][0].r[ri].rb=(molbond*)realloc((*A).m[mi][0].r[ri].rb,nrbc*sizeof(molbond));}
+								nrbc--; // always one less than number of bonds so that index starts at 0
+								(*A).m[mi][0].r[ri].rb[nrbc].s.r=ri;
+                                                                (*A).m[mi][0].r[ri].rb[nrbc].s.a=ai;
+                                                                (*A).m[mi][0].r[ri].rb[nrbc].s.m=mi;
+								(*A).m[mi][0].r[ri].rb[nrbc].t.r=rii;
+								(*A).m[mi][0].r[ri].rb[nrbc].t.a=aii;
+								(*A).m[mi][0].r[ri].rb[nrbc].t.m=mii;
+							}
+					*/ // Working code but commented out as other functions set this information.
+						}
+					}
+                                }
+                        }
+                }
+	printf("(*A).m[%d][0].r[%d].nrb=%d,(*A).m[%d][0].r[%d].n=%d\n",mi,ri,(*A).m[mi][0].r[ri].nrb,mi,ri,(*A).m[mi][0].r[ri].n);
+        }
+}
+return;
+}

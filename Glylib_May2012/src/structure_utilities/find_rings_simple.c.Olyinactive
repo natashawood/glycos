@@ -1,0 +1,118 @@
+/** \file find_rings.c
+ *  \brief Functions for finding rings.
+ *
+ *  Oliver Grant 18_May_2012 
+ */
+
+/**  Finds one ring in a carbohydrate residue. Won't work if there are two rings, fused rings, rings within bigger rings etc.
+ *  For more info on how to write a general ring finder refer to:
+ *  "Ring perception. A new algorithm for directly finding the smallest set of smallest rings from a connection table
+ *  Bo Tao Fan et al, DOI: 10.1021/ci00015a002."
+
+ *  This function might not work properly unless the bonding trees were 
+ *  set according to the internal "from bonds" functions.  However, even 
+ *  if the function thinks this might be the case, it tries anyway.
+ *
+ *  If there is position information in either the main coordinate or 
+ *  the first alternate coordinate set, the function will set the total
+ *  length (s) based on that information.  If position information is 
+ *  not available, it will be set to zero.
+   
+ *  Note: Only sets atom.R as 'Y'
+ */
+#include <stdlib.h>
+#include <molecules.h>
+#include <glylib.h>
+
+void set_carbohydrate_ring_from_residue_atom_nodes(residue *r)
+{
+int i=0,ai=0;
+char isorigin='n';
+int success=2;
+int start,*nstarts,atm;
+
+/*
+    0.  Check that the nodes are set and seem sane.
+        If the origin has one or more incoming, there 
+        might be a problem.
+*/
+
+if(r[0].aT==NULL){mywhine("r[0].aT==NULL in set_carbohydrate_ring_from_residue_atom_nodes.");}
+if(r[0].aT[0].isorigin!='Y'){mywhine("r[0].aT[0] is not origin in set_carbohydrate_ring_from_residue_atom_nodes.");}
+
+if(r[0].na<3)
+    {  /* If there aren't enough atoms to make a ring. */
+    r[0].nring=0;
+    return;
+    }
+
+isorigin='n';
+for(ai=0;ai<r[0].na;ai++)
+    {
+    r[0].a[ai].R='N'; // set all as not part of a ring as default.
+    if(r[0].aT[ai].ni<0){mywhine("Unexpected value of r[0].aT[ai].ni in set_carbohydrate_ring_from_residue_atom_nodes.");}
+    if(r[0].aT[ai].no<0){mywhine("Unexpected value of r[0].aT[ai].no in set_carbohydrate_ring_from_residue_atom_nodes.");}
+    if(r[0].aT[ai].isorigin=='Y') isorigin = 'y';
+    }
+if(isorigin!='y')
+	{
+	printf("\nWARNING: No atom in tree set as origin in \n\tset_carbohydrate_ring_from_residue_atom_nodes.\n");
+	printf("This will almost certainly cause trouble.\n");
+	printf("Setting first atom as origin and trying anyway.\n");
+	printf("If other things fall apart, this is a possible reason.\n");
+	}
+
+/*
+        If there are incoming bonds to the first atom, the atom nodes probably 
+        aren't set properly for this function.  But, give it a go anyhow.  
+*/
+if(r[0].aT[0].ni>0)
+    {
+    printf("\nWARNING: r[0].aT[0].ni>0 in set_carbohydrate_ring_from_residue_atom_nodes.\n");
+    printf("So,the atom_node bonding probably isn't right for this function.\n");
+    printf("Ignoring that and forging on anyway.\n");
+    }
+if(r[0].aT[0].isorigin!='Y')
+    {
+    printf("\nWARNING: r[0].aT[0] is not origin in set_carbohydrate_ring_from_residue_atom_nodes.\n");
+    printf("So,the atom_node bonding probably isn't right for this function.\n");
+    printf("Ignoring that and forging on anyway.\n");
+    }
+
+nstarts=(int*)calloc(r[0].na,sizeof(int));
+
+for(ai=0;ai<r[0].na;ai++) { 
+	if  (r[0].aT[ai].ni-1==1) {
+        	start=ai;
+        	printf("Sould only say this once in set_carbohydrate_ring_from_residue_atom_nodes.\n");
+    }
+}
+
+r[0].a[start].R='Y'; // set start position as part of ring
+
+for (i=0;i<r[0].a[start].ni;i++){
+	atm=r[0].aT[start].i[i].a; // for each atom on an incoming bond
+	success=2; // 2:haven't hit self or origin yet
+	set_carbohydrate_ring(start,atm,r,&success);
+}
+
+return;
+}
+void set_carbohydrate_ring(int start, int atm, residue r, int *success){
+// keep going up incoming until hit start or origin.
+int i;
+if (atm==start) { *success=1; }
+if (r[0].aT[atm].is_origin=='Y') {
+	*success=0; // hit origin
+	for (i=0;i<r[0].aT[atm].no;i++){
+		if (r[0].aT[atm].o[i].a==start){ *success=1; } // origin connnect to start
+	}
+}
+
+if (success==2){
+	atm=r[0].aT[atm].i[0].a;
+	set_carbohydrate_ring(start,atm,r,success);}
+if (success==1){r[0].a[atm].R='Y';} // as we fall out of functions, record route as rings
+return;
+}
+

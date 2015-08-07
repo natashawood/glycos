@@ -1,0 +1,136 @@
+#include <glylib.h>
+#include <mylib.h>
+#include <molecules.h>
+
+/* Based on linkage residue this function will find which linkage leads to the core.*/
+// function declarations:
+void find_branch_from_linkage(int core_dir, int c_ri, int c_mi, int cri, assembly *A, coord_3D **brnch, int *nab);
+
+// START HERE:
+void find_branch_to_rotate(assembly *A, int core_dir, int linked_resid, int *core_ri, coord_3D **brnch, int *nab){
+
+/* get atom (Aa) in linked_resid that is connected to atom (Ab) in core_dir */
+/* Go to atom connected to ring atom in core_dir. From here travel to all it's neighbours bar where we came from saving co_cord. Move to next atom. Repeat.ti*/
+
+
+
+int mi=0,ri=0,ai=0; // indexes
+int c_mi=0,c_ri=0,c_ai=0; // Connected residue index, connected atom index
+int cc_mi=0,cc_ri=0,cc_ai=0; // Atom connected to c_ai
+int i=0;
+int cri; //current residue id
+
+/*
+// first find the mb which leads to the core
+for(mi=0;mi<(*A).nm;mi++){
+        for(ri=0;ri<(*A).m[mi][0].nr;ri++){
+		if(linkage_resid==(*A).m[mi][0].r[ri].n){
+//DEBUG			printf("Found linkage residue %d\n",linkage_resid); 
+			if((*A).m[mi][0].r[ri].nrb>0){ // if it has residues connected (It will)
+//DEBUG				printf("It has %d connected residues\n",(*A).m[mi][0].r[ri].nrb);
+				for(i=0;i<(*A).m[mi][0].r[ri].nrb;i++){ //for each residue connected
+					c_mi=(*A).m[mi][0].r[ri].rb[i].t.m;
+					c_ri=(*A).m[mi][0].r[ri].rb[i].t.r;
+					cri=(*A).m[mi][0].r[ri].n;
+//DEBUG					printf("BACK OUT TO FIRST CALL\n\nResid connected to linkage=%d\n",(*A).m[c_mi][0].r[c_ri].n);
+					explore_branch_for_core(core_ri, c_ri, c_mi, cri, A, &found_core); // self calling function
+					if(found_core==1){ 
+			//			printf("Resid %d leads to the core\n",(*A).m[c_mi][0].r[c_ri].n);
+						core_dir=(*A).m[c_mi][0].r[c_ri].n;
+						found_core=0; //reset
+					}
+				}
+			}
+		}
+	}
+}
+*/
+// find 
+// add in atoms from core glycan if nesscessary for rotation
+for(mi=0;mi<(*A).nm;mi++){
+        for(ri=0;ri<(*A).m[mi][0].nr;ri++){
+                if(linked_resid==(*A).m[mi][0].r[ri].n){
+			for(i=0;i<(*A).m[mi][0].r[ri].nrb;i++){ //for each residue connected
+                        	c_mi=(*A).m[mi][0].r[ri].rb[i].t.m;
+                                c_ri=(*A).m[mi][0].r[ri].rb[i].t.r;
+				c_ai=(*A).m[mi][0].r[ri].rb[i].t.a;
+				if((*A).m[c_mi][0].r[c_ri].n==core_dir){ // find core residue
+					cc_mi=(*A).m[c_mi][0].r[c_ri].a[c_ai].b[0].t.m; // find the atom connected to the connection atom
+					cc_ri=(*A).m[c_mi][0].r[c_ri].a[c_ai].b[0].t.r;
+					cc_ai=(*A).m[c_mi][0].r[c_ri].a[c_ai].b[0].t.a;
+					if((*A).m[cc_mi][0].r[cc_ri].a[cc_ai].nb<2){ // if not part of a ring
+						brnch[*nab]=&(*A).m[c_mi][0].r[c_ri].a[c_ai].x; // save address of coord of connection atom
+		                               	*nab=(*nab+1);
+					}
+				}
+			}
+		}
+	}
+}
+// Stupid but functional.
+
+/*DEBUG*/ printf("Path to core is in direction of resid %d\n",core_dir);
+
+
+// now go in opposite direction of core
+for(mi=0;mi<(*A).nm;mi++){
+        for(ri=0;ri<(*A).m[mi][0].nr;ri++){
+                if(linked_resid==(*A).m[mi][0].r[ri].n){
+//DEBUG                 printf("Found linkage residue %d\n",linkage_resid);
+			// First add this residue to branch
+			for (ai=0;ai<(*A).m[mi][0].r[ri].na;ai++){
+			        brnch[*nab]=&(*A).m[mi][0].r[ri].a[ai].x; // save address of coord
+        			*nab=(*nab+1);
+			}
+			//printf("Resid=%d is part of branch\n",(*A).m[mi][0].r[ri].n);
+			//printf("Nab=%d\n",*nab);
+			for(i=0;i<(*A).m[mi][0].r[ri].nrb;i++){ // for each residue connected to it
+				c_mi=(*A).m[mi][0].r[ri].rb[i].t.m;
+                                c_ri=(*A).m[mi][0].r[ri].rb[i].t.r;
+                                cri=(*A).m[mi][0].r[ri].n;
+				if ((*A).m[c_mi][0].r[c_ri].n!=core_dir){
+					find_branch_from_linkage(core_dir, c_ri, c_mi, cri, A, brnch, nab);
+				}
+			}
+		}
+	}
+}
+
+
+return;
+}
+
+/***FUNCTION. RECURSIVE SELF CALLER FOR EXPLORING BRANCHES. GETS COORD OF ALL ATOMS IN OTHER DIRECTIONS FROM CORE FOR ROTATION *********/////
+
+/* Finds co_ord of all atoms in branch from linkage. These atoms will be rotated when setting the new torsion */
+void find_branch_from_linkage(int core_dir, int c_ri, int c_mi, int cri, assembly *A, coord_3D **brnch, int *nab){
+int i=0;
+int cc_ri=0, cc_mi=0; // connected connected indexes
+int nrb; //readability. Number of residue bonds to other residues
+int pri; // previous residue id
+int ai;
+
+pri=cri;
+cri=(*A).m[c_mi][0].r[c_ri].n;
+nrb=(*A).m[c_mi][0].r[c_ri].nrb;
+for (ai=0;ai<(*A).m[c_mi][0].r[c_ri].na;ai++){
+	brnch[*nab]=&(*A).m[c_mi][0].r[c_ri].a[ai].x; // save address of coord
+//*DBG*/ printf("brnch[%d]=%p\n",*nab,brnch[*nab]);
+//DEBUG	printf("brnch[0].nc=%d\n",brnch[0].nc);
+        *nab=(*nab+1);	
+}
+//*DBG*/ printf("Nab=%d\n",*nab);
+
+if ((nrb>1) && (cri!=core_dir)) {
+        for (i=0;i<nrb;i++){ // for each neighbour that isn't in the direction towards the core.
+                cc_ri=(*A).m[c_mi][0].r[c_ri].rb[i].t.r;
+                cc_mi=(*A).m[c_mi][0].r[c_ri].rb[i].t.m;
+                if (pri!=(*A).m[cc_mi][0].r[cc_ri].n){ // if not going back on ourselves
+                        find_branch_from_linkage(core_dir, cc_ri, cc_mi, cri, A, brnch, nab);
+                }
+        }
+}
+
+return;
+}
+

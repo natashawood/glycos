@@ -1,0 +1,125 @@
+#include <glylib.h>
+#include <mylib.h>
+#include <molecules.h>
+
+#define LIMIT 20
+#define DEG2RAD 57.2957795
+
+/**************************************************************************************************************************************
+ This code will generate all the possible permutations of torsions angles for a linkage with window_size degrees to a limit of LIMIT
+ If the LIMIT=20,window_size=5. I will generate 8 structures per torsion.
+ With two torsions, i.e a phi and a psi there will be 8x8=64 structures.
+ For each Phi I generate each Psi and for each Psi I would create each Omg and so on when applicable.
+ What I want are torsions of +5,-5,+10,-10,+15,-15,+20 and -20 in this order.
+ So sequentially I'll change the torsion by +5,-10,+15,-20,+25,-30,+35,-40 to get those.
+ Oliver Grant 03May2012. Written as part of glycan wiggler code.
+****************************************************************************************************************************************/
+
+void generate_torsion_window_permutations(int window_size, assembly *A, assembly *B, int tors, int *total_struct, double *lowest_clash, int linkage_resid, int linked2){
+
+/***********Find which atoms are involved in linkage******************/
+int lna;
+dihedral_coord_set *DCS;
+DCS=(dihedral_coord_set*)calloc(1, sizeof(dihedral_coord_set)); // why am I doing this?
+DCS=(dihedral_coord_set*)realloc(DCS, 8*sizeof(dihedral_coord_set)); // space for 8
+atom cat,bat; // core atom, branch atom
+//cat=(atom *)calloc(1, sizeof(atom));
+//bat=(atom *)calloc(1, sizeof(atom));
+
+printf("Will find which atoms are involved in linkage\n");
+lna=find_connection_atoms(linkage_resid,linked2,&cat,&bat,DCS,A);
+
+/***********Find which atoms need to moved for this torsion************/
+int nab; //number of atoms in branch
+coord_3D **brnch;
+brnch=(coord_3D**)calloc((*A).na, sizeof(coord_3D*)); // list of pointers to coord in branch
+
+printf("Will find which atoms should be rotated\n");
+find_branch_to_rotate(A, &bat, &cat, brnch, &nab);
+
+/**********Now generate the different torsions*************************/
+double clash=0;
+double delta=0;
+int loops=(2*(LIMIT/window_size));
+int j=0;
+int k=1; // switchs between -1 and +1
+char outname[25];
+
+printf("Will now create the torsions\n");
+while (j<=(loops)){
+	if (j>0) { // allows us to move down to last torsion without outputting structures.
+		delta=((window_size*j*k)/DEG2RAD); // 1st loop k will be 1, then -1, then +1 and so on
+               //	printf("delta=%f, tors=%d, j=%d\n",(delta*DEG2RAD),tors,j);
+		printf("Will now alter torsion\n");
+               	change_torsion_by(delta, DCS, lna, tors, brnch, &nab);
+		sprintf(outname, "%s%d%s", "output_tors",(*total_struct),".pdb"); // outputs a file for each change
+		outputAsmblPDB(A,outname);
+	}
+        j++;
+	*total_struct=((*total_struct)+1); // just a unique id to output .pdb files with. starts at 10000 so loads into vmd in order.
+	k=(k*(-1));
+	if (tors>1){ //tors is torsion id. Phi is 1, Psi is 2, Omg is 3, etc
+		printf("calling generate torsions again with tor=%d\n",tors-1);
+	        generate_torsion_window_permutations(window_size,A,B,(tors-1),total_struct,lowest_clash,linkage_resid,linked2);
+	}
+	//check clash, if clash<1, set i=loops+1, save phi
+	clash=find_vdw_clashes_return_resid_total(A,B,&linkage_resid,1);
+	if (clash<*lowest_clash){
+		*lowest_clash=clash;
+		printf("clash for resid is now %2f\n\n",clash);
+		sprintf(outname, "%s", "best_structure.pdb"); // for best structure only
+		outputAsmblPDB(A,outname);
+		sprintf(outname, "%s%d%s", "best_structure",(*total_struct),".pdb"); // to see best structure evolving.
+		//printf("Just output best_structure%d.pdb\n",*total_struct);
+		outputAsmblPDB(A,outname);
+	}
+}
+
+// need to reset here or torsion we just wiggled will be at the extreme
+//printf("Loop finished, resetting angle to original\n");
+delta=((delta*(-1))/2); // seems I like brackets... This is to take the Phi angle back to it's starting position for next Psi.
+change_torsion_by(delta, DCS, lna, tors, brnch, &nab); // resets
+
+free(brnch);
+free(DCS);
+//free(cat);
+//free(bat);
+
+return;
+}
+/*
+                        // record perturbation and clash score
+                        // select better stucture based on lowest clash score then lowest perturbtion
+                        //So check phi +5 against every Psi,
+                        delta_psi=(window_size*j*k);
+			tors=2; // code for psi
+FC                      change_torsion_by(delta_psi,DCS, lna, tors);
+                        clash[$i][$j] = find_vdw_clashes_return_clashes()
+                        pertub[$i][$j] = absolute values(deltaphi + delta_psi);
+                        //Record vdw value and indices if lower
+FC                      isbigger{
+                                if (clash[$i][$j] < lowest_clash){
+                                        lowest_clash=clash[$i][$j]
+                                        lowestPhi=size_limit+(window_size*$i*$k)
+                                        lowestPsi=size_limit+(window_size*$j*$k)
+                                }
+                                if ((clash[$i][$j] == lowest_clash) && (pertub[$i][$j] < lowest_pertub)) {
+                                        lowest_pertub=pertub[$i][$j]
+                                        lowestPhi=size_limit+(window_size*$i*$k)
+                                        lowestPsi=size_limit+(window_size*$j*$k)
+                                }
+                        }
+                        // in this example 6x6=36 structures!
+                }
+*/
+
+/*
+	if resid is now clear but there is still a clash further down{
+	clash_branch.clash_linkage=
+
+        new_clash=check clash of resid if clasher and branch
+        if resid was clasher and less than clash_total keep it and replace clash_total
+        new_clash=set_phi_torsion as (minus window_size degrees)
+        check clash of resid if clasher and branch
+*/
+
